@@ -26,12 +26,13 @@
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
 
-static dispatch_queue_t af_imageview_processing_queue;
 static dispatch_queue_t imageview_processing_queue() {
-    if (af_imageview_processing_queue == NULL) {
+    static dispatch_queue_t af_imageview_processing_queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
         af_imageview_processing_queue = dispatch_queue_create("com.alamofire.networking.imageview.processing", 0);
-    }
-    
+    });
+
     return af_imageview_processing_queue;
 }
 
