@@ -126,19 +126,21 @@ static char kAFImageRequestOperationObjectKey;
                 UIImage *image = requestOperation.responseImage;
 
                 dispatch_async(dispatch_get_main_queue(), ^{
-                    if (image && !requestOperation.error) {
-                        if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                            self.image = image;
-                        }
+                    if (![requestOperation isCancelled]) {
+                        if (image && !requestOperation.error) {
+                            if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                                self.image = image;
+                            }
 
-                        if (success) {
-                            success(requestOperation.request, requestOperation.response, image);
-                        }
+                            if (success) {
+                                success(requestOperation.request, requestOperation.response, image);
+                            }
 
-                        [[[self class] af_sharedImageCache] cacheImageData:requestOperation.responseData forRequest:urlRequest];
-                    } else {
-                        if (failure) {
-                            failure(requestOperation.request, requestOperation.response, requestOperation.error);
+                            [[[self class] af_sharedImageCache] cacheImageData:requestOperation.responseData forRequest:urlRequest];
+                        } else {
+                            if (failure) {
+                                failure(requestOperation.request, requestOperation.response, requestOperation.error);
+                            }
                         }
                     }
 
