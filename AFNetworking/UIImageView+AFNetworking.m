@@ -26,6 +26,15 @@
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
 
+static dispatch_queue_t af_imageview_processing_queue;
+static dispatch_queue_t imageview_processing_queue() {
+    if (af_imageview_processing_queue == NULL) {
+        af_imageview_processing_queue = dispatch_queue_create("com.alamofire.networking.imageview.processing", 0);
+    }
+    
+    return af_imageview_processing_queue;
+}
+
 @interface AFImageCache : NSCache
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request;
 - (void)cacheImageData:(NSData *)imageData
@@ -112,25 +121,31 @@ static char kAFImageRequestOperationObjectKey;
         self.image = placeholderImage;
         
         AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
-        [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-            if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                self.image = responseObject;
-            }
+        requestOperation.completionBlock = ^ {
+            dispatch_async(imageview_processing_queue(), ^{
+                UIImage *image = requestOperation.responseImage;
 
-            if (success) {
-                success(operation.request, operation.response, responseObject);
-            }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (image && !requestOperation.error) {
+                        if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                            self.image = image;
+                        }
 
-            [[[self class] af_sharedImageCache] cacheImageData:operation.responseData forRequest:urlRequest];
-            
-            self.af_imageRequestOperation = nil;
-        } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-            if (failure) {
-                failure(operation.request, operation.response, error);
-            }
-            
-            self.af_imageRequestOperation = nil;
-        }];
+                        if (success) {
+                            success(requestOperation.request, requestOperation.response, image);
+                        }
+
+                        [[[self class] af_sharedImageCache] cacheImageData:requestOperation.responseData forRequest:urlRequest];
+                    } else {
+                        if (failure) {
+                            failure(requestOperation.request, requestOperation.response, requestOperation.error);
+                        }
+                    }
+
+                    self.af_imageRequestOperation = nil;
+                });
+            });
+        };
         
         self.af_imageRequestOperation = requestOperation;
         
